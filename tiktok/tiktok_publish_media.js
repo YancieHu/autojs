@@ -17,7 +17,7 @@ var TIKTOK_PACKAGE = "com.zhiliaoapp.musically";
 
 // ==================== 本地调试默认参数（对接服务端后可删除） ====================
 // 目的：先让脚本在无下发参数时也能跑通发布流程，后续对接完成直接删掉本段并把开关设为false即可。
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 var DEFAULT_TEMPLATE_PARAMS_VIDEO_JSON = JSON.stringify({
   publish_mode: "video",
   video_file: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/34.mp4",
