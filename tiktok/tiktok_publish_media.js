@@ -22,10 +22,21 @@ var DEFAULT_TEMPLATE_PARAMS_VIDEO_JSON = JSON.stringify({
   publish_mode: "video",
   video_file: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/34.mp4",
   video_caption: "这是一个测试视频支持多行文案",
-  video_cover: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png",
   video_tags: "搞笑, 旅行",
+  video_cover: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png",
   video_mentions: "@user123, @friend456"
 });
+
+var DEFAULT_TEMPLATE_PARAMS_IMAGE_JSON = JSON.stringify({
+  "publish_mode": "album",
+  "album_images": ["https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png", "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png"],
+  "album_title": "这是图集标题",
+  "album_caption": "这是图集文案支持多行",
+  "album_tags": "美食, 生活",
+  "album_mentions": "@userA, @userB"
+});
+
+
 
 // ==================== 配置加载（保持与原脚本一致接口） ====================
 
@@ -50,7 +61,7 @@ function loadGmailConfig() {
     var rawParams = null;
     if (ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS) {
       console.log("使用本地默认视频参数跑通流程");
-      rawParams = DEFAULT_TEMPLATE_PARAMS_VIDEO_JSON;
+      rawParams = DEFAULT_TEMPLATE_PARAMS_IMAGE_JSON;
     } else  if (execArgv && execArgv.template_params) {
       rawParams = execArgv.template_params;
     }
@@ -122,7 +133,6 @@ function normalizePublishConfig(obj) {
       return {
         publish_mode: "video",
         video_file: videoUrl,
-        video_cover: (obj.video_cover || obj.videoCover || "").trim(),
         video_caption: String(obj.video_caption || obj.videoCaption || ""),
         video_tags: String(obj.video_tags || obj.videoTags || ""),
         video_mentions: String(obj.video_mentions || obj.videoMentions || "")
@@ -200,10 +210,119 @@ function safeClick(element, description) {
     console.warn(description + " 元素不存在");
     return false;
   }
-  console.log("点击: " + description);
-  element.click();
-  randomSleep(500, 1200);
-  return true;
+
+  var t = "";
+  var d = "";
+  var cls = "";
+  var clickable = null;
+  var enabled = null;
+  var b = null;
+  try { t = element.text ? String(element.text() || "") : ""; } catch (e1) {}
+  try { d = element.desc ? String(element.desc() || "") : ""; } catch (e2) {}
+  try { cls = element.className ? String(element.className() || "") : ""; } catch (e3) {}
+  try { clickable = element.clickable ? !!element.clickable() : null; } catch (e4) {}
+  try { enabled = element.enabled ? !!element.enabled() : null; } catch (e5) {}
+  try { b = element.bounds ? element.bounds() : null; } catch (e6) {}
+
+  var bStr = "";
+  try {
+    if (b) bStr = " (" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")";
+  } catch (e7) {}
+
+  console.log(
+    "点击: " +
+      description +
+      " [text=" +
+      t +
+      ", desc=" +
+      d +
+      ", class=" +
+      cls +
+      ", clickable=" +
+      clickable +
+      ", enabled=" +
+      enabled +
+      ", bounds=" +
+      bStr +
+      "]"
+  );
+
+  var ok = false;
+  try {
+    ok = !!element.click();
+  } catch (err) {
+    console.warn("click() 异常: " + description + " => " + err);
+    ok = false;
+  }
+  console.log("点击结果: " + ok + " - " + description);
+
+  // 仅用于排查：如果当前节点点不动，打印可点击父节点信息，并做一次兜底点击尝试
+  if (!ok) {
+    var p = null;
+    try { p = element.parent ? element.parent() : null; } catch (e8) { p = null; }
+    for (var i = 0; i < 6 && p; i++) {
+      var pClickable = null;
+      var pEnabled = null;
+      var pText = "";
+      var pDesc = "";
+      var pCls = "";
+      var pb = null;
+      try { pClickable = p.clickable ? !!p.clickable() : null; } catch (e9) {}
+      try { pEnabled = p.enabled ? !!p.enabled() : null; } catch (e10) {}
+      try { pText = p.text ? String(p.text() || "") : ""; } catch (e11) {}
+      try { pDesc = p.desc ? String(p.desc() || "") : ""; } catch (e12) {}
+      try { pCls = p.className ? String(p.className() || "") : ""; } catch (e13) {}
+      try { pb = p.bounds ? p.bounds() : null; } catch (e14) {}
+      var pbStr = "";
+      try {
+        if (pb) pbStr = " (" + pb.left + "," + pb.top + "," + pb.right + "," + pb.bottom + ")";
+      } catch (e15) {}
+
+      if (pClickable) {
+        console.log(
+          "提示: 可点击父节点=" +
+            i +
+            " [text=" +
+            pText +
+            ", desc=" +
+            pDesc +
+            ", class=" +
+            pCls +
+            ", clickable=" +
+            pClickable +
+            ", enabled=" +
+            pEnabled +
+            ", bounds=" +
+            pbStr +
+            "]"
+        );
+
+        try {
+          ok = !!p.click();
+          console.log("父节点点击结果: " + ok + " - " + description);
+        } catch (e16) {
+          console.warn("父节点 click() 异常: " + description + " => " + e16);
+        }
+        break;
+      }
+
+      try { p = p.parent ? p.parent() : null; } catch (e17) { p = null; }
+    }
+
+    // 兜底：坐标点击（无法判断是否真正触发，仅保证发出了点击）
+    if (!ok && b) {
+      try {
+        click(b.centerX(), b.centerY());
+        console.log("坐标点击兜底已执行 - " + description);
+        ok = true;
+      } catch (e18) {
+        console.warn("坐标点击兜底异常: " + description + " => " + e18);
+      }
+    }
+  }
+
+  if (ok) randomSleep(500, 1200);
+  return ok;
 }
 
 function findElementByTextAny(targets, timeout) {
@@ -235,7 +354,20 @@ function isOnTikTokMainTab() {
   return false;
 }
 
+function isOnMediaPickerScreen() {
+  // 素材选择页特征：Recents 下拉、顶部分类(All/Videos/Photos...)、底部 Select multiple / Next、以及选择框 j76
+  try {
+    if (textMatches(/Recents/i).exists()) return true;
+    if (textMatches(/Select multiple/i).exists()) return true;
+    if (id("j76").exists()) return true;
+  } catch (e) {}
+  return false;
+}
+
 function handleCommonDialogsOnce() {
+  // 素材选择页：Next 不是弹窗按钮，避免误点导致流程判断混乱
+  if (isOnMediaPickerScreen()) return false;
+
   // 常见弹窗：权限/引导/订阅/通知等
   var buttons = [
     "Allow",
@@ -256,6 +388,66 @@ function handleCommonDialogsOnce() {
     "Don't allow"
   ];
   return clickAnyText(buttons, "通用弹窗按钮", 300);
+}
+
+// ==================== 权限预授权（root/ADB） ====================
+
+function getAndroidSdkInt() {
+  try {
+    if (typeof device !== "undefined" && device && device.sdkInt) return device.sdkInt;
+  } catch (e) {}
+  try {
+    if (typeof android !== "undefined" && android.os && android.os.Build && android.os.Build.VERSION) {
+      return android.os.Build.VERSION.SDK_INT;
+    }
+  } catch (e) {}
+  return 0;
+}
+
+function shellBestEffort(cmd, desc) {
+  desc = desc || cmd;
+  try {
+    var r = shell(cmd, true);
+    if (r && typeof r.code === "number" && r.code === 0) return true;
+  } catch (e) {
+    // ignore，继续尝试非root
+  }
+
+  try {
+    var r2 = shell(cmd, false);
+    if (r2 && typeof r2.code === "number" && r2.code === 0) return true;
+  } catch (e2) {}
+
+  console.log("! 命令执行失败: " + desc + " => " + cmd);
+  return false;
+}
+
+function ensureTikTokRuntimePermissions() {
+  var pkg = TIKTOK_PACKAGE;
+  var sdk = getAndroidSdkInt();
+  console.log("启动前预授权TikTok权限, pkg=" + pkg + ", sdk=" + sdk);
+
+  // 重点：避免上传时弹出“Allow TikTok to take pictures and record video?”
+  var perms = [
+    "android.permission.CAMERA",
+    "android.permission.RECORD_AUDIO"
+  ];
+
+  // 上传本地素材通常还需要相册/媒体读取权限
+  if (sdk >= 33) {
+    perms.push("android.permission.READ_MEDIA_IMAGES");
+    perms.push("android.permission.READ_MEDIA_VIDEO");
+  } else {
+    perms.push("android.permission.READ_EXTERNAL_STORAGE");
+  }
+
+  for (var i = 0; i < perms.length; i++) {
+    shellBestEffort("pm grant " + pkg + " " + perms[i], "授予权限 " + perms[i]);
+  }
+
+  // 某些ROM会通过 AppOps 进一步控制相机/麦克风，尽量同步放开（失败不影响继续）
+  shellBestEffort("appops set " + pkg + " CAMERA allow", "AppOps CAMERA");
+  shellBestEffort("appops set " + pkg + " RECORD_AUDIO allow", "AppOps RECORD_AUDIO");
 }
 
 // ==================== 文案拼装 ====================
@@ -328,7 +520,7 @@ function downloadAllMedia(cfg) {
   var urls = [];
   if (cfg.publish_mode === "video") {
     urls.push(cfg.video_file);
-    if (cfg.video_cover) urls.push(cfg.video_cover);
+    // 视频模式：只下载视频
   } else {
     urls = urls.concat(cfg.album_images || []);
   }
@@ -367,6 +559,7 @@ function downloadAllMedia(cfg) {
 
 function launchTikTok() {
   console.log("启动 TikTok...");
+  ensureTikTokRuntimePermissions();
   app.launchPackage(TIKTOK_PACKAGE);
   var ok = waitForPackage(TIKTOK_PACKAGE, 20000);
   if (!ok) return false;
@@ -391,6 +584,40 @@ function waitForPackage(pkg, timeoutMs) {
   return false;
 }
 
+function isOnCreateCameraScreen() {
+  try {
+    return (
+      textMatches(/PHOTO/i).exists() &&
+      textMatches(/POST/i).exists() &&
+      textMatches(/LIVE/i).exists()
+    );
+  } catch (e) {}
+  return false;
+}
+
+function clickCbmOrFallbackOnce() {
+  try {
+    var cbmBtn = id("cbm").findOne(800);
+    if (cbmBtn) return safeClick(cbmBtn, "Create相机界面 - cbm按钮");
+  } catch (e) {}
+
+  if (!isOnCreateCameraScreen()) return false;
+
+  console.log("未找到 cbm 按钮，使用坐标点击兜底 (885,1599)");
+  var x = 885;
+  var y = 1599;
+  if (typeof device !== "undefined" && device && device.width && device.height) {
+    if (x >= device.width || y >= device.height) {
+      x = Math.floor(device.width * 0.82);
+      y = Math.floor(device.height * 0.83);
+      console.log("设备分辨率不匹配，使用比例坐标兜底: (" + x + "," + y + ")");
+    }
+  }
+  click(x, y);
+  randomSleep(800, 1400);
+  return true;
+}
+
 function openCreateAndUpload() {
   console.log("进入发布入口 (+)...");
   var createBtn = descContains("Create").clickable(true).findOne(2000);
@@ -408,23 +635,103 @@ function openCreateAndUpload() {
     randomSleep(1200, 2000);
   }
 
-  // 找 Upload
-  console.log("点击 Upload...");
-  var ok = false;
-  for (var i = 0; i < 8; i++) {
-    if (clickAnyText(["Upload"], "Upload入口", 800)) {
-      ok = true;
-      break;
+  // 新流程：Create 后直接进入素材选择页（不再查找 Upload）
+  // 期间可能先进入相机(Photo)界面，需要点 cbm 进入素材选择页
+  for (var k = 0; k < 8; k++) {
+    if (isOnMediaPickerScreen()) return true;
+    if (clickCbmOrFallbackOnce()) {
+      randomSleep(800, 1400);
+      if (isOnMediaPickerScreen()) return true;
     }
-    handleCommonDialogsOnce();
-    randomSleep(600, 1200);
+    // 仅在未进入素材选择页前处理通用弹窗（权限/引导等）
+    if (!isOnMediaPickerScreen()) handleCommonDialogsOnce();
+    randomSleep(500, 900);
   }
-  return ok;
+  return isOnMediaPickerScreen();
 }
 
 function switchPickerTab(tabName) {
   if (!tabName) return false;
   return clickAnyText([tabName], "切换Tab", 800);
+}
+
+function toSortedByBoundsTopLeft(uiObjects) {
+  var arr = [];
+  if (!uiObjects) return arr;
+  try {
+    if (typeof uiObjects.forEach === "function") {
+      uiObjects.forEach(function(el) { if (el) arr.push(el); });
+    }
+  } catch (e) {}
+
+  // 兼容部分环境没有 forEach
+  if (!arr.length) {
+    try {
+      var size = typeof uiObjects.size === "function" ? uiObjects.size() : uiObjects.length;
+      for (var i = 0; i < size; i++) {
+        var el2 = typeof uiObjects.get === "function" ? uiObjects.get(i) : uiObjects[i];
+        if (el2) arr.push(el2);
+      }
+    } catch (e2) {}
+  }
+
+  arr.sort(function(a, b) {
+    try {
+      var ba = a.bounds();
+      var bb = b.bounds();
+      if (ba.top !== bb.top) return ba.top - bb.top;
+      return ba.left - bb.left;
+    } catch (e3) {
+      return 0;
+    }
+  });
+  return arr;
+}
+
+function clickByCenter(el, description) {
+  try {
+    if (el && el.click && el.click()) {
+      console.log("点击: " + description);
+      randomSleep(300, 700);
+      return true;
+    }
+  } catch (e) {}
+  try {
+    var b = el && el.bounds ? el.bounds() : null;
+    if (!b) return false;
+    console.log("点击(坐标): " + description);
+    click(b.centerX(), b.centerY());
+    randomSleep(300, 700);
+    return true;
+  } catch (e2) {}
+  return false;
+}
+
+function pickBySelectionCheckboxes(count) {
+  if (count <= 0) return false;
+  var boxes = null;
+  try {
+    boxes = id("j76").find();
+  } catch (e) {}
+  if (!boxes) return false;
+
+  // UiObjectCollection: empty()；有些环境没有，做双判断
+  try { if (typeof boxes.empty === "function" && boxes.empty()) return false; } catch (e2) {}
+  var sorted = toSortedByBoundsTopLeft(boxes);
+  if (!sorted.length) return false;
+
+  var picked = 0;
+  var target = Math.min(count, sorted.length);
+  for (var i = 0; i < target; i++) {
+    if (clickByCenter(sorted[i], "选择框(j76) 第" + (i + 1) + "个")) {
+      picked++;
+      randomSleep(250, 550);
+    } else {
+      break;
+    }
+  }
+  console.log("选择框(j76) 选择数量:", picked, "/", count);
+  return picked === count;
 }
 
 function pickFirstThumbnail() {
@@ -523,45 +830,11 @@ function clickNextUntilPost(maxSteps) {
       randomSleep(1500, 2600);
       continue;
     }
-    handleCommonDialogsOnce();
+    // 素材选择页完全不跑通用弹窗处理，避免把 Next 当成弹窗按钮反复误点
+    if (!isOnMediaPickerScreen()) handleCommonDialogsOnce();
     randomSleep(800, 1400);
   }
   return textContains("Post").exists() || descContains("Post").exists() || className("android.widget.EditText").exists();
-}
-
-function trySetVideoCoverIfProvided(cfg) {
-  try {
-    if (!cfg || cfg.publish_mode !== "video") return true;
-    if (!cfg.video_cover) return true;
-
-    // 不同版本入口文案可能不同，这里尽量覆盖
-    var coverEntry = findElementByTextAny(
-      ["Cover", "Edit cover", "Select cover", "Set cover"],
-      800
-    );
-    if (!coverEntry) return true;
-
-    console.log("尝试设置封面...");
-    safeClick(coverEntry, "封面入口");
-    randomSleep(1200, 2000);
-
-    // 如果进入了封面选择页，优先选最近的第一张（downloadMedia 会把封面放入媒体库）
-    // 注意：有的版本是视频帧封面，不是相册封面；此处只做 best-effort
-    switchPickerTab("Photos");
-    randomSleep(600, 1200);
-    pickFirstThumbnail();
-    randomSleep(1200, 2000);
-
-    // 确认/保存
-    clickAnyText(["Done", "Save", "Confirm", "OK"], "封面确认", 800);
-    randomSleep(800, 1400);
-
-    return true;
-  } catch (e) {
-    // 封面失败不影响主流程
-    console.warn("设置封面失败(忽略):", e.message);
-    return true;
-  }
 }
 
 function inputCaption(textValue) {
@@ -605,7 +878,7 @@ function publishToTikTok(cfg) {
   if (!launchTikTok()) return false;
 
   if (!openCreateAndUpload()) {
-    console.log("✗ 无法进入 Upload");
+    console.log("✗ 无法进入素材选择页");
     return false;
   }
 
@@ -615,13 +888,20 @@ function publishToTikTok(cfg) {
     console.log("选择视频...");
     switchPickerTab("Videos");
     randomSleep(800, 1400);
-    if (!pickFirstThumbnail()) return false;
+    // 优先按选择框(j76)选择第一个；找不到再用旧的缩略图启发式
+    if (!pickBySelectionCheckboxes(1)) {
+      if (!pickFirstThumbnail()) return false;
+    }
     randomSleep(1200, 2000);
   } else {
     console.log("选择图集...");
     switchPickerTab("Photos");
     randomSleep(800, 1400);
-    if (!pickAlbumThumbnails((cfg.album_images || []).length)) return false;
+    var imgCount = (cfg.album_images || []).length;
+    // 优先按选择框(j76)按数量多选；找不到再走旧逻辑
+    if (!pickBySelectionCheckboxes(imgCount)) {
+      if (!pickAlbumThumbnails(imgCount)) return false;
+    }
     randomSleep(1200, 2000);
   }
 
@@ -630,9 +910,6 @@ function publishToTikTok(cfg) {
     console.log("✗ 无法到达发布页");
     return false;
   }
-
-  // 封面设置：best-effort，不影响主流程
-  trySetVideoCoverIfProvided(cfg);
 
   var caption = buildFinalCaption(cfg);
   if (!inputCaption(caption)) {
