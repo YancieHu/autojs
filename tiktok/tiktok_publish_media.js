@@ -20,9 +20,9 @@ var TIKTOK_PACKAGE = "com.zhiliaoapp.musically";
 var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
 var DEFAULT_TEMPLATE_PARAMS_VIDEO_JSON = JSON.stringify({
   publish_mode: "video",
-  video_file: "https://bj.bcebos.com/v1/yunapp-ftp/apk/img/12.mp4",
+  video_file: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/34.mp4",
   video_caption: "这是一个测试视频支持多行文案",
-  video_cover: "https://bj.bcebos.com/v1/yunapp-ftp/apk/img/sdk_bind.png",
+  video_cover: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png",
   video_tags: "搞笑, 旅行",
   video_mentions: "@user123, @friend456"
 });
@@ -48,11 +48,11 @@ function loadGmailConfig() {
     }
 
     var rawParams = null;
-    if (execArgv && execArgv.template_params) {
-      rawParams = execArgv.template_params;
-    } else if (ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS) {
-      console.log("未检测到下发 template_params，使用本地默认视频参数跑通流程");
+    if (ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS) {
+      console.log("使用本地默认视频参数跑通流程");
       rawParams = DEFAULT_TEMPLATE_PARAMS_VIDEO_JSON;
+    } else  if (execArgv && execArgv.template_params) {
+      rawParams = execArgv.template_params;
     }
 
     if (!rawParams) {
@@ -393,17 +393,18 @@ function waitForPackage(pkg, timeoutMs) {
 
 function openCreateAndUpload() {
   console.log("进入发布入口 (+)...");
+  var createBtn = descContains("Create").clickable(true).findOne(2000);
 
   // 方式1：找描述为 Create / Add 的按钮
-  var createBtn =
-    descMatches(/Create|Add|New post/i).findOne(1200) ||
-    textMatches(/Create|Add/i).findOne(1200);
+  // var createBtn =
+  //   descMatches(/Create|Add|New post/i).findOne(1200) ||
+  //   textMatches(/Create|Add/i).findOne(1200);
   if (createBtn && safeClick(createBtn, "Create按钮")) {
     randomSleep(1200, 2000);
   } else {
     // 方式2：坐标兜底（底部中间）
     console.log("未找到 Create 按钮，使用坐标点击兜底");
-    click(device.width / 2, Math.floor(device.height * 0.93));
+    click(device.width / 2, 1857);
     randomSleep(1200, 2000);
   }
 
