@@ -18,8 +18,8 @@ var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 // ==================== 本地调试默认参数 ====================
 var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify({
-  usernames: "sami471234",
-  message_content: "Hello from AutoJS"
+  usernames: "sam",
+  message_content: "Hello good morning!"
 });
 
 // ==================== 结果上报（必须保留） ====================
@@ -116,7 +116,7 @@ function safeClick(element, description) {
   if (!ok && b) {
     try {
       ok = click(b.centerX(), b.centerY());
-    console.log("坐标点击兜底已执行 - " +b.centerX()+"-"+b.centerY()+ description);
+    console.log("坐标点击兜底已执行 - " +b.centerX()+"-"+b.centerY()+ description+"-"+ok);
     } catch (e8) {
       console.warn("坐标点击兜底异常: " + description + " => " + e8);
     }
@@ -418,7 +418,7 @@ function openSearch() {
 
   // // 常见：放大镜图标 desc=Search
   // try {
-    var el = desc("Search").findOne(800);
+    var el = descContains("Search").findOne(800);
     if (el) return clickClickableParent(el, "搜索入口(desc)");
   // } catch (e0) {}
   // try {
@@ -427,44 +427,45 @@ function openSearch() {
   // } catch (e1) {}
 
   // 坐标兜底：点击右上区域
-  try {
-    // click(device.width * 0.92, device.height * 0.10);
-    randomSleep(600, 900);
-    return true;
-  } catch (e2) {}
-  return false;
+  // try {
+  //   // click(device.width * 0.92, device.height * 0.10);
+  //   randomSleep(600, 900);
+  //   return true;
+  // } catch (e2) {}
+  // return false;
+  randomSleep(10000, 15000);
+  return true;
 }
-
 function inputSearchKeyword(keyword) {
   console.log("输入搜索关键词:", keyword);
   var edit = null;
+  var clear = id("c5m").findOne(5000);
+  if(clear){
+    clear.click();
+    randomSleep(3000, 5000);
+    console.log("已经有关键词, 清除关键词:");
+  }
   try { edit = className("android.widget.EditText").findOne(5000); } catch (e0) { edit = null; }
   if (!edit) return false;
-  try { edit.setText(String(keyword)); } catch (e1) { return false; }
-  randomSleep(2000, 3000);
+  try {
+     edit.click();
+     edit.setText(String(keyword)); 
+    } catch (e1) { return false; }
+    randomSleep(3000, 5000);
+  // edit.imeEnter();
    // 触发搜索：优先点页面/键盘上的 Search 按钮，其次再回车兜底
    var searched= false;
     // 部分版本 Search 是文字按钮
   // searched =id("s30").click();
-  if (!searched) {
-    // click(957,150);
-    console.log("点击坐标搜索");
-    var dudu =id("s30").clickable(true).findOne(5000);
-    console.log("点击---"+dudu);
-    dudu.click();
-    console.log("点击---"+lala);
+  // if (!searched) {
+    click(957,150);
+  //   console.log("点击坐标搜索");
+  //   var dudu =id("s30").untilFindOne();
+  //   console.log("点击---"+dudu);
+  //   dudu.click();
 
-  }
-  // if (!searched) {
-  //   try {
-  //     // 终极兜底：adb input keyevent ENTER
-  //     searched = shellBestEffort("input keyevent 66");
-  //     if (searched) console.log("已通过 shell keyevent 66 触发搜索(兜底)");
-  //   } catch (e5) {}
   // }
-  // if (!searched) {
-  //   console.warn("未明确触发搜索按钮/回车（部分版本会自动联想搜索，继续尝试后续步骤）");
-  // }
+
 
   randomSleep(800, 1200);
   return true;
@@ -502,13 +503,9 @@ function openMessageEntryOnProfile() {
   console.log("进入 Message...");
   if (clickAnyText(["Message", "Messages", "消息", "发消息", "私信"], "Message 按钮", 2500)) return true;
   try {
-    var el = descContains("Message").findOne(1500);
+    var el = textContains("Message").findOne(1500);
     if (el) return clickClickableParent(el, "Message 按钮(desc)");
   } catch (e0) {}
-  try {
-    var el2 = descContains("message").findOne(1500);
-    if (el2) return clickClickableParent(el2, "Message 按钮(desc-lower)");
-  } catch (e1) {}
   return false;
 }
 
@@ -521,7 +518,7 @@ function sendDmText(message) {
   randomSleep(500, 900);
 
   // 发送
-  if (clickAnyText(["Send", "发送"], "发送按钮", 1200)) return true;
+  // if (clickAnyText(["Send", "发送"], "发送按钮", 1200)) return true;
   try {
     var el = descContains("Send").findOne(1200);
     if (el) return clickClickableParent(el, "发送按钮(desc)");
@@ -556,7 +553,7 @@ function sendPrivateMessage(cfg) {
       backToMainTab(8);
       continue;
     }
-    randomSleep(800, 1200);
+    randomSleep(10000, 15000);
 
     if (!inputSearchKeyword(username)) {
       failed.push(username + ":inputSearch");
@@ -568,20 +565,20 @@ function sendPrivateMessage(cfg) {
       backToMainTab(8);
       continue;
     }
-    randomSleep(800, 1200);
+    randomSleep(10000, 15000);
 
-    // if (!openMessageEntryOnProfile()) {
-    //   failed.push(username + ":openMessage");
-    //   backToMainTab(8);
-    //   continue;
-    // }
-    // randomSleep(800, 1200);
+    if (!openMessageEntryOnProfile()) {
+      failed.push(username + ":openMessage");
+      backToMainTab(8);
+      continue;
+    }
+    randomSleep(10000, 15000);
 
-    // if (!sendDmText(msg)) {
-    //   failed.push(username + ":send");
-    //   backToMainTab(8);
-    //   continue;
-    // }
+    if (!sendDmText(msg)) {
+      failed.push(username + ":send");
+      backToMainTab(8);
+      continue;
+    }
 
     randomSleep(700, 1100);
     // backToMainTab(8);
@@ -600,7 +597,7 @@ function sendPrivateMessage(cfg) {
 // ==================== 主流程 ====================
 
 function main() {
-  // console.show();
+  console.show();
   console.log("=== TikTok 私信脚本启动 ===");
 
   if (!loadUpdateConfig()) {
