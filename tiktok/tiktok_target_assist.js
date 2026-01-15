@@ -16,16 +16,16 @@ var TIKTOK_PACKAGE = "com.zhiliaoapp.musically";
 var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 
 // ==================== 本地调试默认参数 ====================
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify(
   {
     "usernames": "kimkamkim",
     "actions": ["comment", "like", "follow"],
     "comment_content": "评论内容",
-    "comment_count_begin": 1,
-    "comment_count_end": 3,
-    "like_count_begin": 3,
-    "like_count_end": 5,
+    "comment_count_begin": 2,
+    "comment_count_end": 4,
+    "like_count_begin": 0,
+    "like_count_end": 0,
     "video_watch_time_begin": 10,
     "video_watch_time_end": 30
   }
@@ -103,6 +103,12 @@ function getLikeButtonSignatureForDebug() {
   var dShort = d;
   try { if (dShort.length > 80) dShort = dShort.slice(0, 80) + "..."; } catch (e8) {}
   return "desc=" + dShort + "|class=" + cls + "|bounds=" + bStr;
+}
+
+function hasVideoInputBarHint() {
+  // 按你给的“刚刚评论成功的控件”来判断：只看 Post comment 是否存在
+  try { return !!descContains("Post comment").exists(); } catch (e0) {}
+  return false;
 }
 
 function actionsHas(cfg, keyEn, keyZh) {
@@ -372,6 +378,8 @@ function normalizeUpdateConfig(obj) {
     var likeCountEndRaw = obj.like_count_end;
     var watchTimeBeginRaw = obj.video_watch_time_begin;
     var watchTimeEndRaw = obj.video_watch_time_end;
+    var commentCountBeginRaw = obj.comment_count_begin;
+    var commentCountEndRaw = obj.comment_count_end;
 
     var usernames = [];
     if (Array.isArray(usernamesRaw)) {
@@ -407,10 +415,14 @@ function normalizeUpdateConfig(obj) {
     var likeCountEnd = parseInt(likeCountEndRaw, 10);
     var watchTimeBegin = parseInt(watchTimeBeginRaw, 10);
     var watchTimeEnd = parseInt(watchTimeEndRaw, 10);
+    var commentCountBegin = parseInt(commentCountBeginRaw, 10);
+    var commentCountEnd = parseInt(commentCountEndRaw, 10);
     if (isNaN(likeCountBegin)) likeCountBegin = 0;
     if (isNaN(likeCountEnd)) likeCountEnd = 0;
     if (isNaN(watchTimeBegin)) watchTimeBegin = 0;
     if (isNaN(watchTimeEnd)) watchTimeEnd = 0;
+    if (isNaN(commentCountBegin)) commentCountBegin = 0;
+    if (isNaN(commentCountEnd)) commentCountEnd = 0;
 
     return {
       usernames: usernames,
@@ -419,7 +431,9 @@ function normalizeUpdateConfig(obj) {
       like_count_begin: likeCountBegin,
       like_count_end: likeCountEnd,
       video_watch_time_begin: watchTimeBegin,
-      video_watch_time_end: watchTimeEnd
+      video_watch_time_end: watchTimeEnd,
+      comment_count_begin: commentCountBegin,
+      comment_count_end: commentCountEnd
     };
   } catch (e) {
     console.error("normalizeUpdateConfig 失败:", e);
@@ -695,53 +709,137 @@ function clickLikeButtonOnce() {
   return false;
 }
 
+function pickCommentText(cfg, index) {
+  try {
+    var arr = (cfg && cfg.comment_content) ? cfg.comment_content : [];
+    if (!arr || !arr.length) return "";
+    if (arr.length === 1) return String(arr[0] || "");
+    return String(arr[index % arr.length] || "");
+  } catch (e) {}
+  return "";
+}
+
+function sendCommentOnce(commentText) {
+  var txt = String(commentText || "").trim();
+  if (!txt) {
+    console.warn("评论内容为空，跳过评论");
+    return false;
+  }
+
+  // 打开评论面板
+  var opened = false;
+  try { opened = clickAnyText(["Comment", "评论"], "评论按钮", 1200); } catch (e0) { opened = false; }
+  if (!opened) {
+    try {
+      var c1 = descContains("Comment").clickable(true).findOne(800);
+      if (c1) opened = clickClickableParent(c1, "评论按钮(descContains Comment)");
+    } catch (e1) {}
+  }
+  randomSleep(800, 1200);
+
+  // 找输入框并输入
+  var edit = null;
+  try { edit = className("android.widget.EditText").findOne(2500); } catch (e2) { edit = null; }
+  if (!edit) {
+    console.warn("未找到评论输入框(EditText)");
+    try { back(); } catch (e3) {}
+    randomSleep(600, 900);
+    return false;
+  }
+  try { edit.click(); } catch (e4) {}
+  try { edit.setText(txt); } catch (e5) { return false; }
+  randomSleep(500, 900);
+
+  // 发送/发布
+  if (clickAnyText(["Post", "Send", "发送", "发布"], "发送评论按钮", 1200)) {
+    randomSleep(800, 1200);
+    // try { back(); } catch (e6) {}
+    randomSleep(500, 900);
+    return true;
+  }
+  try {
+    var s1 = descContains("Send").clickable(true).findOne(800);
+    if (s1) {
+      clickClickableParent(s1, "发送评论按钮(descContains Send)");
+      randomSleep(800, 1200);
+    //   try { back(); } catch (e7) {}
+      randomSleep(500, 900);
+      return true;
+    }
+  } catch (e8) {}
+  randomSleep(500, 900);
+  return true;
+}
+
 function browseVideosAndLikeIfNeeded(cfg) {
-  // 只有 actions 包含 like/点赞 才执行点赞浏览
-  if (!actionsHas(cfg, "like", "点赞")) {
-    console.log("actions 未包含 like/点赞，跳过点赞浏览");
+  var needLike = actionsHas(cfg, "like", "点赞");
+  var needComment = actionsHas(cfg, "comment", "评论");
+  if (!needLike && !needComment) {
+    console.log("actions 未包含 like/comment（点赞/评论），跳过视频互动");
     return true;
   }
 
-  var likeTarget = randomIntBetween(cfg.like_count_begin, cfg.like_count_end);
+  var likeTarget = needLike ? randomIntBetween(cfg.like_count_begin, cfg.like_count_end) : 0;
+  var commentTarget = needComment ? randomIntBetween(cfg.comment_count_begin, cfg.comment_count_end) : 0;
+  var browseTarget = Math.max(likeTarget, commentTarget);
+
   console.log(
-    "点赞目标数(随机)=" +
-      String(likeTarget) +
-      ", range=[" +
-      String(cfg.like_count_begin) +
-      "," +
-      String(cfg.like_count_end) +
-      "]"
+    "点赞目标(随机)=" + String(likeTarget) + ", range=[" + String(cfg.like_count_begin) + "," + String(cfg.like_count_end) + "]" +
+    "; 评论目标(随机)=" + String(commentTarget) + ", range=[" + String(cfg.comment_count_begin) + "," + String(cfg.comment_count_end) + "]" +
+    "; 游览数量=max=" + String(browseTarget)
   );
-  if (likeTarget <= 0) {
-    console.log("点赞目标<=0，视为无需点赞");
+
+  if (browseTarget <= 0) {
+    console.log("游览数量<=0，视为无需互动");
     return true;
   }
 
   var liked = 0;
-  var maxBrowse = Math.max(likeTarget + 5, 10); // 防止无限刷，给一点余量
-  for (var i = 0; i < maxBrowse; i++) {
-    if (liked >= likeTarget) {
-      console.log("已达到点赞目标，停止浏览 liked=" + String(liked));
-      return true;
-    }
+  var commented = 0;
+  for (var i = 0; i < browseTarget; i++) {
 
     var watchSec = randomIntBetween(cfg.video_watch_time_begin, cfg.video_watch_time_end);
     if (watchSec < 0) watchSec = 0;
-    console.log("浏览视频#" + String(i + 1) + " 观看=" + String(watchSec) + "s, 点赞进度=" + String(liked) + "/" + String(likeTarget));
+    console.log(
+      "浏览视频#" +
+        String(i + 1) +
+        "/" +
+        String(browseTarget) +
+        " 观看=" +
+        String(watchSec) +
+        "s, 点赞进度=" +
+        String(liked) +
+        "/" +
+        String(likeTarget) +
+        ", 评论进度=" +
+        String(commented) +
+        "/" +
+        String(commentTarget)
+    );
     logCurrentAppContext("浏览视频-开始");
     console.log("屏幕尺寸 device=" + String(device.width) + "x" + String(device.height));
     console.log("视频签名(开始)=" + getLikeButtonSignatureForDebug());
     try { sleep(watchSec * 1000); } catch (e0) {}
 
-    // 点赞一个
-    var likeOk = false;
-    try { likeOk = clickLikeButtonOnce(); } catch (e1) { likeOk = false; }
-    if (likeOk) liked++;
-    console.log("点赞结果=" + String(likeOk) + ", 当前已点赞=" + String(liked));
-    console.log("视频签名(点赞后)=" + getLikeButtonSignatureForDebug());
+    if (needLike && liked < likeTarget) {
+      var likeOk = false;
+      try { likeOk = clickLikeButtonOnce(); } catch (e1) { likeOk = false; }
+      if (likeOk) liked++;
+      console.log("点赞结果=" + String(likeOk) + ", 当前已点赞=" + String(liked));
+      console.log("视频签名(点赞后)=" + getLikeButtonSignatureForDebug());
+    }
 
-    if (liked >= likeTarget) {
-      console.log("已达到点赞目标，停止浏览 liked=" + String(liked));
+    if (needComment && commented < commentTarget) {
+      var commentText = pickCommentText(cfg, commented);
+      console.log("准备评论: idx=" + String(commented) + ", textLen=" + String(commentText ? commentText.length : 0));
+      var cOk = false;
+      try { cOk = sendCommentOnce(commentText); } catch (e2) { cOk = false; }
+      if (cOk) commented++;
+      console.log("评论结果=" + String(cOk) + ", 当前已评论=" + String(commented));
+    }
+
+    if (liked >= likeTarget && commented >= commentTarget) {
+      console.log("已达到点赞/评论目标，提前停止浏览 liked=" + String(liked) + ", commented=" + String(commented));
       return true;
     }
 
@@ -755,12 +853,19 @@ function browseVideosAndLikeIfNeeded(cfg) {
       swipeOk = swipeToNextVideo();
     } catch (e2) {
       console.warn("滑到下一个视频异常: " + e2);
-      break;
+      return true; // 无法继续就按“视频刷完也算完成”
     }
     console.log("swipe 返回=" + String(swipeOk));
     randomSleep(900, 1400);
     var postSwipeSig = getLikeButtonSignatureForDebug();
     console.log("视频签名(滑动后)=" + postSwipeSig);
+    var hasInputBar = false;
+    try { hasInputBar = hasVideoInputBarHint(); } catch (e22) { hasInputBar = false; }
+    console.log("视频输入栏探测=" + (hasInputBar ? "存在" : "不存在"));
+    if (!hasInputBar) {
+      console.log("滑动后未检测到视频输入栏，认为没有更多可游览视频，提前结束");
+      return true;
+    }
     if (preSwipeSig !== "no-like-node" && postSwipeSig !== "no-like-node" && preSwipeSig === postSwipeSig) {
       console.warn("滑动后视频签名未变化：可能未翻页/被面板拦截/节点未刷新");
     }
@@ -776,8 +881,8 @@ function browseVideosAndLikeIfNeeded(cfg) {
     } catch (e3) {}
   }
 
-  console.log("提前结束浏览（可能视频已结束或无法滑动），已点赞=" + String(liked) + "/" + String(likeTarget));
-  return true; // 没达到目标但视频刷完也算完成
+  console.log("已按游览数量完成，最终 liked=" + String(liked) + "/" + String(likeTarget) + ", commented=" + String(commented) + "/" + String(commentTarget));
+  return true;
 }
 
 /**

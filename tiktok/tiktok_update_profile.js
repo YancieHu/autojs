@@ -21,7 +21,7 @@ var TIKTOK_EDIT_PROFILE_ACTIVITY = "com.ss.android.ugc.profile.business.ur.ui.Pr
 var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 
 // ==================== 本地调试默认参数 ====================
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify({
   update_avatar_file: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png",
   update_name: "test_user_001",

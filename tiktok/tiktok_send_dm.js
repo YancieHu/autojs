@@ -16,7 +16,7 @@ var TIKTOK_PACKAGE = "com.zhiliaoapp.musically";
 var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 
 // ==================== 本地调试默认参数 ====================
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify({
   usernames: "sam",
   message_content: "Hello good morning!"
