@@ -19,13 +19,13 @@ var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify(
   {
-    "usernames": "kimkamkim",
+    "usernames": "OpenAI,Artlist.io,Kling AI",
     "actions": ["comment", "like", "follow"],
     "comment_content": "评论内容",
-    "comment_count_begin": 2,
-    "comment_count_end": 4,
-    "like_count_begin": 0,
-    "like_count_end": 0,
+    "comment_count_begin": 1,
+    "comment_count_end": 3,
+    "like_count_begin": 1,
+    "like_count_end": 3,
     "video_watch_time_begin": 10,
     "video_watch_time_end": 30
   }
@@ -107,7 +107,7 @@ function getLikeButtonSignatureForDebug() {
 
 function hasVideoInputBarHint() {
   // 按你给的“刚刚评论成功的控件”来判断：只看 Post comment 是否存在
-  try { return !!descContains("Post comment").exists(); } catch (e0) {}
+  try { return !!textContains("Add comment").exists(); } catch (e0) {}
   return false;
 }
 
@@ -315,9 +315,25 @@ function handleCommonDialogsOnce() {
 }
 
 function isOnTikTokMainTab() {
-  var tabs = ["Home", "Friends", "Inbox", "Profile", "Me", "首页", "朋友", "收件箱", "消息", "我", "个人资料"];
+  var tabs = ["Home", "Friends", "Inbox", "首页", "朋友", "收件箱"];
   for (var i = 0; i < tabs.length; i++) {
-    if (textContains(tabs[i]).exists() || descContains(tabs[i]).exists()) return true;
+    var t = tabs[i];
+    var hitText = false;
+    var hitDesc = false;
+    try { hitText = text(t).exists(); } catch (e0) { hitText = false; }
+    try { hitDesc = desc(t).exists(); } catch (e1) { hitDesc = false; }
+    if (hitText || hitDesc) {
+      console.log(
+        "isOnTikTokMainTab: 命中 tab=" +
+          String(t) +
+          ", via=" +
+          (hitText ? "textContains" : "") +
+          (hitText && hitDesc ? "+" : "") +
+          (hitDesc ? "descContains" : "")
+      );
+      try { logCurrentAppContext("isOnTikTokMainTab-命中"); } catch (e2) {}
+      return true;
+    }
   }
   return false;
 }
@@ -339,13 +355,31 @@ function waitForPackage(pkg, timeoutMs) {
 
 function backToMainTab(maxBack) {
   maxBack = maxBack || 8;
+  console.log("backToMainTab: 开始 maxBack=" + String(maxBack));
+  logCurrentAppContext("backToMainTab-开始");
   for (var i = 0; i < maxBack; i++) {
-    if (isOnTikTokMainTab()) return true;
+    var onMain = false;
+    try { onMain = isOnTikTokMainTab(); } catch (e0) { onMain = false; }
+    console.log("backToMainTab: round=" + String(i + 1) + "/" + String(maxBack) + ", isOnMain=" + String(onMain));
+    if (onMain) {
+      console.log("backToMainTab: 已在主界面，结束");
+      return true;
+    }
     // try { handleCommonDialogsOnce(); } catch (e0) {}
-    try { back(); } catch (e1) {}
+    logCurrentAppContext("backToMainTab-back前");
+    try {
+      console.log("backToMainTab: 执行 back()");
+      back();
+    } catch (e1) {
+      console.warn("backToMainTab: back() 异常: " + e1);
+    }
     randomSleep(500, 900);
+    logCurrentAppContext("backToMainTab-back后");
   }
-  return isOnTikTokMainTab();
+  var finalOnMain = false;
+  try { finalOnMain = isOnTikTokMainTab(); } catch (e2) { finalOnMain = false; }
+  console.log("backToMainTab: 结束 isOnMain=" + String(finalOnMain));
+  return finalOnMain;
 }
 
 // ==================== 配置加载（必须保留） ====================
@@ -441,6 +475,11 @@ function normalizeUpdateConfig(obj) {
   }
 }
 
+/**
+ * 读取本地默认参数配置
+ * 返回 DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON 常量值
+ * 主要用于获取更新相关的模板参数配置
+ */
 function readLocalUpdateMd() {
   try {
     return DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON;
@@ -462,9 +501,10 @@ function loadUpdateConfig() {
 
     var rawParams = null;
     if (ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS) {
-      rawParams = readLocalUpdateMd();
       console.log("使用本地默认点评关参数跑通流程");
+      rawParams = readLocalUpdateMd();
     } else if (execArgv && execArgv.template_params) {
+      console.log("使用在线参数跑通流程");
       rawParams = execArgv.template_params;
     }
 
@@ -618,9 +658,9 @@ function openFlow() {
   }
 
   console.log("开始关注... actions=" + JSON.stringify(actions));
-  if (clickAnyText(["Follow", "关注"], "Follow 按钮", 2500)) return true;
+  // if (clickAnyText(["Follow", "关注"], "Follow 按钮", 2500)) return true;
   try {
-    var el = textContains("Follow").findOne(1500);
+    var el = text("Follow").findOne(1500);
     if (el) return clickClickableParent(el, "Follow 按钮(desc)");
   } catch (e0) {}
   return false;
@@ -942,11 +982,12 @@ function sendPrivateMessage(cfg) {
     }
     randomSleep(10000, 15000);
 
-    if (!openFlow()) {
-      failed.push(username + ":openMessage");
-      backToMainTab(8);
-      continue;
-    }
+    // if (!openFlow()) {
+    //   failed.push(username + ":openMessage");
+    //   backToMainTab(8);
+    //   continue;
+    // }
+    openFlow();
     randomSleep(10000, 15000);
 
     if (!openVideoForLikeOrComment()) {
