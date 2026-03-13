@@ -411,30 +411,56 @@ function launchTikTok() {
   return true;
 }
 
+function isSearchPageReady() {
+  try {
+    var edit = className("android.widget.EditText").findOne(300);
+    if (!edit) return false;
+    var b = null;
+    try { b = edit.bounds(); } catch (e0) { b = null; }
+    if (b && b.top < device.height * 0.20) return true;
+  } catch (e) {}
+  return false;
+}
+
 function openSearch() {
   console.log("点击搜索...");
-  // 主页顶部/底部的 Search 入口各版本差异较大，这里 best-effort
-  // if (clickAnyText(["Search", "搜索", "Discover", "发现"], "搜索入口", 900)) return true;
 
-  // // 常见：放大镜图标 desc=Search
-  // try {
-    var el = descContains("Search").findOne(800);
-    if (el) return clickClickableParent(el, "搜索入口(desc)");
-  // } catch (e0) {}
-  // try {
-  //   var el2 = descContains("search").findOne(800);
-  //   if (el2) return clickClickableParent(el2, "搜索入口(desc-lower)");
-  // } catch (e1) {}
+  if (isSearchPageReady()) {
+    console.log("当前已在搜索页，无需重复点击搜索入口");
+    return true;
+  }
 
-  // 坐标兜底：点击右上区域
-  // try {
-  //   // click(device.width * 0.92, device.height * 0.10);
-  //   randomSleep(600, 900);
-  //   return true;
-  // } catch (e2) {}
-  // return false;
-  randomSleep(10000, 15000);
-  return true;
+  if (!isOnTikTokMainTab()) {
+    console.log("当前不在 TikTok 主 tab，先尝试返回主界面");
+    backToMainTab(8);
+    randomSleep(600, 900);
+    if (isSearchPageReady()) return true;
+  }
+
+  var el = null;
+  try { el = descContains("Search").findOne(1200); } catch (e0) { el = null; }
+  if (!el) {
+    try { el = descContains("search").findOne(1200); } catch (e1) { el = null; }
+  }
+  if (el) {
+    var ok = clickClickableParent(el, "搜索入口(desc)");
+    if (ok) {
+      randomSleep(600, 900);
+      if (isSearchPageReady()) return true;
+      console.warn("点击搜索入口后仍未进入搜索页");
+    }
+  }
+
+  try {
+    click(device.width * 0.92, device.height * 0.10);
+    console.log("搜索入口坐标兜底已执行");
+    randomSleep(600, 900);
+    if (isSearchPageReady()) return true;
+  } catch (e2) {}
+
+  console.warn("openSearch 失败：未进入搜索页");
+  logCurrentAppContext("openSearch失败");
+  return false;
 }
 function inputSearchKeyword(keyword) {
   console.log("输入搜索关键词:", keyword);
@@ -715,6 +741,20 @@ function openUserFromResults(username) {
   return false;
 }
 
+function isOwnProfilePage() {
+  try {
+    if (text("Edit profile").exists() || text("Edit Profile").exists() || text("编辑资料").exists() || text("编辑个人资料").exists()) {
+      return true;
+    }
+  } catch (e0) {}
+  try {
+    if (textContains("Share profile").exists() || textContains("分享个人资料").exists()) {
+      return true;
+    }
+  } catch (e1) {}
+  return false;
+}
+
 function openMessageEntryOnProfile() {
   console.log("进入 Message...");
   if (clickAnyText(["Message", "Messages", "消息", "发消息", "私信"], "Message 按钮", 2500)) return true;
@@ -722,6 +762,9 @@ function openMessageEntryOnProfile() {
     var el = textContains("Message").findOne(1500);
     if (el) return clickClickableParent(el, "Message 按钮(desc)");
   } catch (e0) {}
+  if (isOwnProfilePage()) {
+    console.warn("当前进入的是自己的主页，没有 Message 按钮");
+  }
   return false;
 }
 
@@ -784,7 +827,11 @@ function sendPrivateMessage(cfg) {
     randomSleep(10000, 15000);
 
     if (!openMessageEntryOnProfile()) {
-      failed.push(username + ":openMessage");
+      if (isOwnProfilePage()) {
+        console.warn("目标用户疑似当前登录账号，跳过发送: " + username);
+      } else {
+        failed.push(username + ":openMessage");
+      }
       backToMainTab(8);
       continue;
     }
