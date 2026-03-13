@@ -21,13 +21,16 @@ var TIKTOK_EDIT_PROFILE_ACTIVITY = "com.ss.android.ugc.profile.business.ur.ui.Pr
 var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 
 // ==================== 本地调试默认参数 ====================
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+
+// 第25行：换成上面的数据
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify({
-  update_avatar_file: "https://raw.githubusercontent.com/YancieHu/autojs/feature/ticktok/tiktok/bind.png",
-  update_name: "test_user_001",
-  nickname: "Test Nickname",
-  bio: "这是一个测试简介（支持多行）\nLine 2",
-  website: "https://example.com"
+  update_avatar_file: "http://10.1.58.102:8808/download/2026030318/Jesus-Avator_1772533312221.png",
+  update_name: "ngquchong498",
+  nickname: "ngquchong0303",
+  bio: "God bless you",
+  website: "https://www.desiringgod.org/",
+  platforms: ["tiktok"]
 });
 
 // ==================== 结果上报（与发布脚本保持一致风格） ====================
