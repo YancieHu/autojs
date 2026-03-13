@@ -521,6 +521,56 @@ function handleUsernameConfirmDialog(timeoutMs) {
   return true;
 }
 
+function isBioConfirmDialogVisible() {
+  try {
+    // 典型弹窗文案：Save bio? / Edits to your bio have not been saved yet.
+    if (textContains("Save bio").exists()) return true;
+    if (textContains("not been saved").exists()) return true;
+    if (textContains("保存简介").exists()) return true;
+  } catch (e) {
+    console.warn("isBioConfirmDialogVisible 异常:", e);
+  }
+  return false;
+}
+
+function handleBioConfirmDialog(timeoutMs) {
+  timeoutMs = timeoutMs || 6500;
+  var start = Date.now();
+  var saw = false;
+
+  while (Date.now() - start < timeoutMs) {
+    if (isBioConfirmDialogVisible()) {
+      saw = true;
+      if (clickAnyText(["Save", "保存"], "简介确认弹窗-Save", 900)) {
+        randomSleep(450, 850);
+        if (!isBioConfirmDialogVisible()) return true;
+      }
+
+      var btn = null;
+      try {
+        btn = text("Save").findOne(700) || text("保存").findOne(700);
+      } catch (e1) {
+        console.warn("handleBioConfirmDialog 查找Save异常:", e1);
+        btn = null;
+      }
+      if (btn && clickClickableParent(btn, "简介确认弹窗按钮(兜底)")) {
+        randomSleep(450, 850);
+        if (!isBioConfirmDialogVisible()) return true;
+      }
+    } else if (saw) {
+      return true;
+    }
+    sleep(250);
+  }
+
+  if (saw && isBioConfirmDialogVisible()) {
+    console.warn("简介确认弹窗未处理成功，仍然可见");
+    logCurrentAppContext("handleBioConfirmDialog失败");
+    return false;
+  }
+  return true;
+}
+
 function isOnTikTokMainTab() {
   // 底栏常见入口（英文/中文）
   var tabs = ["Home", "Friends", "Inbox", "Profile", "Me", "首页", "朋友", "收件箱", "消息", "我", "个人资料"];
@@ -928,9 +978,8 @@ function updateBio(bio) {
     console.log("简介 Save可点击");
     if (!clickSaveInEditor()) return false;
   }
-
-
-
+  // 保存简介后可能弹出"Save bio?"确认框，需要点 Save 才会提交
+  if (!handleBioConfirmDialog(6500)) return false;
   waitForEditProfileScreen(9000);
   randomSleep(900, 1400);
   return true;
