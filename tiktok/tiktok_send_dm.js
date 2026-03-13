@@ -260,6 +260,16 @@ function isOnTikTokMainTab() {
   return false;
 }
 
+function hasSearchEntryOnCurrentPage() {
+  try {
+    if (descContains("Search").exists() || descContains("search").exists()) return true;
+  } catch (e0) {}
+  try {
+    if (text("Search").exists() || text("搜索").exists()) return true;
+  } catch (e1) {}
+  return false;
+}
+
 function waitForPackage(pkg, timeoutMs) {
   timeoutMs = timeoutMs || 20000;
   var start = Date.now();
@@ -278,12 +288,17 @@ function waitForPackage(pkg, timeoutMs) {
 function backToMainTab(maxBack) {
   maxBack = maxBack || 8;
   for (var i = 0; i < maxBack; i++) {
-    if (isOnTikTokMainTab()) return true;
-    // try { handleCommonDialogsOnce(); } catch (e0) {}
+    if (isSearchPageReady()) {
+      console.log("当前在搜索页，先返回上一层");
+      try { back(); } catch (e0) {}
+      randomSleep(500, 900);
+      continue;
+    }
+    if (isOnTikTokMainTab() && hasSearchEntryOnCurrentPage()) return true;
     try { back(); } catch (e1) {}
     randomSleep(500, 900);
   }
-  return isOnTikTokMainTab();
+  return isOnTikTokMainTab() && hasSearchEntryOnCurrentPage();
 }
 
 // ==================== 配置加载（必须保留） ====================
@@ -430,8 +445,8 @@ function openSearch() {
     return true;
   }
 
-  if (!isOnTikTokMainTab()) {
-    console.log("当前不在 TikTok 主 tab，先尝试返回主界面");
+  if (!isOnTikTokMainTab() || !hasSearchEntryOnCurrentPage()) {
+    console.log("当前页面不是可直接搜索的起点，先尝试返回主界面");
     backToMainTab(8);
     randomSleep(600, 900);
     if (isSearchPageReady()) return true;
