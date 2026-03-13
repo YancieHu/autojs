@@ -749,7 +749,7 @@ function buildUserResultTapTarget(textNode, reason) {
 
 function findFirstUserResult(username) {
   var normalizedUsername = normalizeVisibleText(username);
-  var prefix = normalizedUsername.length > 8 ? normalizedUsername.substring(0, 8) : normalizedUsername;
+  var prefix = normalizedUsername.length > 12 ? normalizedUsername.substring(0, 12) : normalizedUsername;
 
   try {
     var exactNodes = className("android.widget.TextView").find();
