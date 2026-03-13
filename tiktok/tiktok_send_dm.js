@@ -583,6 +583,48 @@ function openSearch() {
   logCurrentAppContext("openSearch失败");
   return false;
 }
+function findSearchSubmitButtonNearEdit(edit) {
+  var editBounds = null;
+  try { editBounds = edit && edit.bounds ? edit.bounds() : null; } catch (e0) { editBounds = null; }
+
+  // 优先找右上角明确的 Search 文本按钮
+  try {
+    var searchTextBtn = text("Search").clickable(true).findOne(400) || text("搜索").clickable(true).findOne(400);
+    if (searchTextBtn) {
+      var b0 = searchTextBtn.bounds();
+      if (b0 && b0.top < device.height * 0.20) return searchTextBtn;
+    }
+  } catch (e1) {}
+
+  // 再找搜索框右侧的可点击 Button（不依赖固定 id）
+  try {
+    var buttons = className("android.widget.Button").clickable(true).find();
+    if (buttons) {
+      var best = null;
+      var bestScore = 999999;
+      buttons.forEach(function(n) {
+        try {
+          var b = n.bounds();
+          if (!b) return;
+          if (b.top > device.height * 0.22) return;
+          if (editBounds) {
+            if (b.left < editBounds.right - 40) return;
+            if (Math.abs(b.centerY() - editBounds.centerY()) > 80) return;
+          }
+          var score = Math.abs(device.width - b.right) + Math.abs(b.top);
+          if (score < bestScore) {
+            bestScore = score;
+            best = n;
+          }
+        } catch (e) {}
+      });
+      if (best) return best;
+    }
+  } catch (e2) {}
+
+  return null;
+}
+
 function inputSearchKeyword(keyword) {
   console.log("输入搜索关键词:", keyword);
   var edit = null;
@@ -601,24 +643,20 @@ function inputSearchKeyword(keyword) {
     try { logNodeSummary(edit, "输入后搜索框"); } catch (e1b) {}
     randomSleep(3000, 5000);
   dumpSearchTriggerDebug(keyword);
-  // edit.imeEnter();
-   // 触发搜索：优先点页面/键盘上的 Search 按钮，其次再回车兜底
-   var searched= false;
-    // 部分版本 Search 是文字按钮
-  // searched =id("s30").click();
-  // if (!searched) {
+  // 触发搜索：优先点顶部右侧真实 Search 按钮；最后才坐标兜底
+  var searched = false;
+  var searchBtn = findSearchSubmitButtonNearEdit(edit);
+  if (searchBtn) {
+    logNodeSummary(searchBtn, "搜索提交按钮命中");
+    searched = safeClick(searchBtn, "搜索提交按钮");
+  }
+  if (!searched) {
     console.log("执行搜索坐标点击 point=(957,150)");
-    click(957,150);
-  //   console.log("点击坐标搜索");
-  //   var dudu =id("s30").untilFindOne();
-  //   console.log("点击---"+dudu);
-  //   dudu.click();
-
-  // }
-
+    try { searched = !!click(957,150); } catch (e2) { searched = false; }
+  }
 
   randomSleep(800, 1200);
-  return true;
+  return searched;
 }
 
 function isProbablySearchInputNode(node) {
@@ -876,20 +914,69 @@ function isOwnProfilePage() {
       return true;
     }
   } catch (e1) {}
+  try {
+    if (text("Edit").exists() || text("编辑").exists()) return true;
+  } catch (e2) {}
   return false;
+}
+
+function findMessageEntryQuick() {
+  var targets = ["Message", "Messages", "消息", "发消息", "私信"];
+  for (var i = 0; i < targets.length; i++) {
+    try {
+      var exact = text(targets[i]).findOne(300);
+      if (exact) return exact;
+    } catch (e0) {}
+    try {
+      var contains = textContains(targets[i]).findOne(200);
+      if (contains) return contains;
+    } catch (e1) {}
+  }
+  try {
+    var clickableNodes = clickable(true).find();
+    var best = null;
+    if (clickableNodes) {
+      clickableNodes.forEach(function(n) {
+        if (best) return;
+        try {
+          var t = n.text ? String(n.text() || "") : "";
+          if (!t) return;
+          if (t === "Message" || t === "Messages" || t === "消息" || t === "发消息" || t === "私信") {
+            var b = n.bounds();
+            if (b && b.top > device.height * 0.25 && b.bottom < device.height * 0.92) best = n;
+          }
+        } catch (e) {}
+      });
+    }
+    return best;
+  } catch (e2) {}
+  return null;
 }
 
 function openMessageEntryOnProfile() {
   console.log("进入 Message...");
   dumpMessageEntryDebug();
-  if (clickAnyText(["Message", "Messages", "消息", "发消息", "私信"], "Message 按钮", 2500)) return true;
-  try {
-    var el = textContains("Message").findOne(1500);
-    if (el) return clickClickableParent(el, "Message 按钮(desc)");
-  } catch (e0) {}
+
   if (isOwnProfilePage()) {
-    console.warn("当前进入的是自己的主页，没有 Message 按钮");
+    console.warn("当前进入的是自己的主页/可编辑主页，没有 Message 按钮，直接跳过查找");
+    return false;
   }
+
+  var messageNode = findMessageEntryQuick();
+  if (messageNode) {
+    logNodeSummary(messageNode, "Message入口命中");
+    if (clickClickableParent(messageNode, "Message 按钮")) return true;
+  }
+
+  try {
+    var el = textContains("Message").findOne(400);
+    if (el) {
+      logNodeSummary(el, "Message contains兜底命中");
+      if (clickClickableParent(el, "Message 按钮(desc)")) return true;
+    }
+  } catch (e3) {}
+
+  console.warn("当前页面未找到 Message 按钮");
   return false;
 }
 
