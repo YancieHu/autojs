@@ -426,6 +426,112 @@ function launchTikTok() {
   return true;
 }
 
+function logNodeSummary(node, prefix) {
+  if (!node) return;
+  try {
+    var b = node.bounds ? node.bounds() : null;
+    var t = node.text ? String(node.text() || "") : "";
+    var d = node.desc ? String(node.desc() || "") : "";
+    var cls = node.className ? String(node.className() || "") : "";
+    var rid = node.id ? String(node.id() || "") : "";
+    var clickable = node.clickable ? !!node.clickable() : null;
+    console.log(
+      prefix +
+        " [text=" +
+        t +
+        ", desc=" +
+        d +
+        ", id=" +
+        rid +
+        ", class=" +
+        cls +
+        ", clickable=" +
+        clickable +
+        ", bounds=" +
+        (b ? "(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")" : "") +
+        "]"
+    );
+  } catch (e) {}
+}
+
+function dumpSearchTriggerDebug(keyword) {
+  console.log("===== 搜索触发诊断开始 ===== keyword=" + String(keyword || ""));
+  try {
+    var edit = className("android.widget.EditText").findOne(500);
+    if (edit) logNodeSummary(edit, "搜索框");
+    else console.log("搜索框 未找到");
+  } catch (e0) {}
+
+  try {
+    var searchTexts = ["Search", "Users", "Top", "Videos"];
+    for (var i = 0; i < searchTexts.length; i++) {
+      var txt = searchTexts[i];
+      var n = text(txt).findOne(300);
+      if (n) logNodeSummary(n, "文本候选-" + txt);
+    }
+  } catch (e1) {}
+
+  try {
+    var descNode = descContains("Search").findOne(500) || descContains("search").findOne(500);
+    if (descNode) logNodeSummary(descNode, "搜索按钮(desc候选)");
+    else console.log("搜索按钮(desc候选) 未找到");
+  } catch (e2) {}
+
+  try {
+    var clickableNodes = clickable(true).find();
+    var count = 0;
+    if (clickableNodes) {
+      clickableNodes.forEach(function(n) {
+        if (count >= 8) return;
+        try {
+          var b = n.bounds();
+          if (!b) return;
+          if (b.top > device.height * 0.22) return;
+          logNodeSummary(n, "顶部可点击#" + count);
+          count++;
+        } catch (e) {}
+      });
+    }
+    console.log("顶部可点击候选数量=" + count);
+  } catch (e3) {}
+  console.log("===== 搜索触发诊断结束 =====");
+}
+
+function dumpMessageEntryDebug() {
+  console.log("===== Message入口诊断开始 =====");
+  try {
+    var candidates = ["Message", "Messages", "消息", "发消息", "私信"];
+    for (var i = 0; i < candidates.length; i++) {
+      var node = text(candidates[i]).findOne(300);
+      if (node) logNodeSummary(node, "Message文本候选-" + candidates[i]);
+    }
+  } catch (e0) {}
+
+  try {
+    var containsNode = textContains("Message").findOne(400);
+    if (containsNode) logNodeSummary(containsNode, "Message contains候选");
+  } catch (e1) {}
+
+  try {
+    var buttons = clickable(true).find();
+    var count = 0;
+    if (buttons) {
+      buttons.forEach(function(n) {
+        if (count >= 10) return;
+        try {
+          var b = n.bounds();
+          if (!b) return;
+          if (b.top < device.height * 0.25 || b.bottom > device.height * 0.92) return;
+          logNodeSummary(n, "主页中部可点击#" + count);
+          count++;
+        } catch (e) {}
+      });
+    }
+    console.log("主页中部可点击候选数量=" + count);
+  } catch (e2) {}
+  console.log("===== Message入口诊断结束 =====");
+}
+
 function isSearchPageReady() {
   try {
     var edit = className("android.widget.EditText").findOne(300);
@@ -492,13 +598,16 @@ function inputSearchKeyword(keyword) {
      edit.click();
      edit.setText(String(keyword)); 
     } catch (e1) { return false; }
+    try { logNodeSummary(edit, "输入后搜索框"); } catch (e1b) {}
     randomSleep(3000, 5000);
+  dumpSearchTriggerDebug(keyword);
   // edit.imeEnter();
    // 触发搜索：优先点页面/键盘上的 Search 按钮，其次再回车兜底
    var searched= false;
     // 部分版本 Search 是文字按钮
   // searched =id("s30").click();
   // if (!searched) {
+    console.log("执行搜索坐标点击 point=(957,150)");
     click(957,150);
   //   console.log("点击坐标搜索");
   //   var dudu =id("s30").untilFindOne();
@@ -772,6 +881,7 @@ function isOwnProfilePage() {
 
 function openMessageEntryOnProfile() {
   console.log("进入 Message...");
+  dumpMessageEntryDebug();
   if (clickAnyText(["Message", "Messages", "消息", "发消息", "私信"], "Message 按钮", 2500)) return true;
   try {
     var el = textContains("Message").findOne(1500);
