@@ -486,11 +486,77 @@ function isProbablySearchInputNode(node) {
   return false;
 }
 
+function dumpSearchResultsDebug(username) {
+  console.log("===== 搜索结果页 dump 开始 =====");
+
+  // 1. 查找包含用户名文本的元素
+  try {
+    var byText = textContains(username).find();
+    if (byText) {
+      byText.forEach(function(n) {
+        try {
+          var b = n.bounds();
+          console.log("  [文本匹配] text=" + n.text() + ", class=" + n.className() + ", clickable=" + n.clickable() + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
+        } catch (e) {}
+      });
+    } else {
+      console.log("  [文本匹配] 未找到包含 '" + username + "' 的元素");
+    }
+  } catch (e0) { console.log("  [文本匹配] 异常:", e0); }
+
+  // 2. 列出屏幕中部区域（tab下方~底栏上方）的可点击元素（最多打10个）
+  try {
+    var allClickable = clickable(true).find();
+    var count = 0;
+    if (allClickable) {
+      allClickable.forEach(function(n) {
+        if (count >= 10) return;
+        try {
+          var b = n.bounds();
+          if (b.top < device.height * 0.15 || b.bottom > device.height * 0.90) return;
+          var t = n.text ? String(n.text() || "") : "";
+          var d = n.desc ? String(n.desc() || "") : "";
+          var rid = n.id ? String(n.id() || "") : "";
+          console.log("  [可点击#" + count + "] text=" + t + ", desc=" + d + ", id=" + rid + ", class=" + n.className() + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
+          count++;
+        } catch (e) {}
+      });
+    }
+    console.log("  [可点击] 中部区域共 " + count + " 个");
+  } catch (e1) { console.log("  [可点击] 异常:", e1); }
+
+  // 3. 列出所有 TextView（文本节点），看看搜索结果里有什么文字（最多20个）
+  try {
+    var tvs = className("android.widget.TextView").find();
+    var tvCount = 0;
+    if (tvs) {
+      tvs.forEach(function(n) {
+        if (tvCount >= 20) return;
+        try {
+          var b = n.bounds();
+          if (b.top < device.height * 0.10 || b.bottom > device.height * 0.90) return;
+          var t = n.text ? String(n.text() || "") : "";
+          if (!t) return;
+          console.log("  [TextView#" + tvCount + "] text=" + t + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
+          tvCount++;
+        } catch (e) {}
+      });
+    }
+    console.log("  [TextView] 中部区域共 " + tvCount + " 个");
+  } catch (e2) { console.log("  [TextView] 异常:", e2); }
+
+  console.log("===== 搜索结果页 dump 结束 =====");
+}
+
 function openUserFromResults(username) {
   console.log("打开搜索结果用户:", username);
   // 尝试切到 Users
   clickAnyText(["Users", "User", "用户"], "Users Tab", 700);
   randomSleep(5600, 8000);
+
+  // 打印搜索结果页信息，便于确认能用什么方式定位
+  dumpSearchResultsDebug(username);
+
   // 兜底：点第一个头像/结果项
   try {
     var img = id("jxf").clickable(true).findOne(2500);
