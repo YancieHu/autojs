@@ -497,40 +497,7 @@ function dumpSearchTriggerDebug(keyword) {
   console.log("===== 搜索触发诊断结束 =====");
 }
 
-function dumpMessageEntryDebug() {
-  console.log("===== Message入口诊断开始 =====");
-  try {
-    var candidates = ["Message", "Messages", "消息", "发消息", "私信"];
-    for (var i = 0; i < candidates.length; i++) {
-      var node = text(candidates[i]).findOne(300);
-      if (node) logNodeSummary(node, "Message文本候选-" + candidates[i]);
-    }
-  } catch (e0) {}
-
-  try {
-    var containsNode = textContains("Message").findOne(400);
-    if (containsNode) logNodeSummary(containsNode, "Message contains候选");
-  } catch (e1) {}
-
-  try {
-    var buttons = clickable(true).find();
-    var count = 0;
-    if (buttons) {
-      buttons.forEach(function(n) {
-        if (count >= 10) return;
-        try {
-          var b = n.bounds();
-          if (!b) return;
-          if (b.top < device.height * 0.25 || b.bottom > device.height * 0.92) return;
-          logNodeSummary(n, "主页中部可点击#" + count);
-          count++;
-        } catch (e) {}
-      });
-    }
-    console.log("主页中部可点击候选数量=" + count);
-  } catch (e2) {}
-  console.log("===== Message入口诊断结束 =====");
-}
+var MESSAGE_ENTRY_TARGETS = ["Message", "Messages", "消息", "发消息", "私信"];
 
 function isSearchPageReady() {
   try {
@@ -920,61 +887,67 @@ function isOwnProfilePage() {
   return false;
 }
 
-function findMessageEntryQuick() {
-  var targets = ["Message", "Messages", "消息", "发消息", "私信"];
-  for (var i = 0; i < targets.length; i++) {
+function findMessageEntry() {
+  console.log("===== 查找Message入口 =====");
+
+  // 第一层：精确/包含文本匹配
+  for (var i = 0; i < MESSAGE_ENTRY_TARGETS.length; i++) {
+    var t = MESSAGE_ENTRY_TARGETS[i];
     try {
-      var exact = text(targets[i]).findOne(300);
-      if (exact) return exact;
+      var exact = text(t).findOne(300);
+      if (exact) {
+        logNodeSummary(exact, "Message入口命中(text)-" + t);
+        return exact;
+      }
     } catch (e0) {}
     try {
-      var contains = textContains(targets[i]).findOne(200);
-      if (contains) return contains;
+      var contains = textContains(t).findOne(200);
+      if (contains) {
+        logNodeSummary(contains, "Message入口命中(textContains)-" + t);
+        return contains;
+      }
     } catch (e1) {}
   }
+
+  // 第二层：遍历中部可点击节点，按文本匹配
   try {
     var clickableNodes = clickable(true).find();
-    var best = null;
     if (clickableNodes) {
+      var best = null;
+      var targetsSet = {};
+      for (var j = 0; j < MESSAGE_ENTRY_TARGETS.length; j++) targetsSet[MESSAGE_ENTRY_TARGETS[j]] = true;
       clickableNodes.forEach(function(n) {
         if (best) return;
         try {
-          var t = n.text ? String(n.text() || "") : "";
-          if (!t) return;
-          if (t === "Message" || t === "Messages" || t === "消息" || t === "发消息" || t === "私信") {
-            var b = n.bounds();
-            if (b && b.top > device.height * 0.25 && b.bottom < device.height * 0.92) best = n;
+          var nt = n.text ? String(n.text() || "") : "";
+          if (!nt || !targetsSet[nt]) return;
+          var b = n.bounds();
+          if (b && b.top > device.height * 0.25 && b.bottom < device.height * 0.92) {
+            logNodeSummary(n, "Message入口命中(clickable遍历)");
+            best = n;
           }
         } catch (e) {}
       });
+      if (best) return best;
     }
-    return best;
   } catch (e2) {}
+
+  console.log("当前页面未找到 Message 入口");
   return null;
 }
 
 function openMessageEntryOnProfile() {
   console.log("进入 Message...");
-  dumpMessageEntryDebug();
 
   if (isOwnProfilePage()) {
     console.warn("当前进入的是自己的主页/可编辑主页，没有 Message 按钮，直接跳过查找");
     return false;
   }
 
-  var messageNode = findMessageEntryQuick();
+  var messageNode = findMessageEntry();
   if (messageNode) {
-    logNodeSummary(messageNode, "Message入口命中");
     if (clickClickableParent(messageNode, "Message 按钮")) return true;
   }
-
-  try {
-    var el = textContains("Message").findOne(400);
-    if (el) {
-      logNodeSummary(el, "Message contains兜底命中");
-      if (clickClickableParent(el, "Message 按钮(desc)")) return true;
-    }
-  } catch (e3) {}
 
   console.warn("当前页面未找到 Message 按钮");
   return false;

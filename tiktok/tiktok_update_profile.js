@@ -21,7 +21,7 @@ var TIKTOK_EDIT_PROFILE_ACTIVITY = "com.ss.android.ugc.profile.business.ur.ui.Pr
 var FORCE_STOP_TIKTOK_BEFORE_LAUNCH = true;
 
 // ==================== 本地调试默认参数 ====================
-var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = true;
+var ENABLE_LOCAL_DEFAULT_TEMPLATE_PARAMS = false;
 
 // 第25行：换成上面的数据
 var DEFAULT_TEMPLATE_PARAMS_UPDATE_JSON = JSON.stringify({
