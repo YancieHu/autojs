@@ -1157,12 +1157,16 @@ function updateAvatar(avatarUrl) {
     safeClick(img, "头像区域(兜底)");
   }
 
-  randomSleep(800, 1400);
+  randomSleep(1500, 2500);
 
   // 头像弹框：Take photo / Upload photo / View photo
   // 需要点 Upload photo 才会进入选择图片页
-  clickAnyText(["Upload photo", "Upload Photo", "上传照片", "上传图片"], "Upload photo", 1500);
-  randomSleep(700, 1200);
+  // Upload photo 是 clickable=false 的 TextView，需要向上遍历找可点击父容器
+  var uploadPhotoEl = findElementByTextAny(["Upload photo", "Upload Photo", "上传照片", "上传图片"], 1500, "Upload photo");
+  if (uploadPhotoEl) {
+    clickClickableParent(uploadPhotoEl, "Upload photo");
+  }
+  randomSleep(2000, 3500);
 
   // // 选择相册/图库
   // clickAnyText(
