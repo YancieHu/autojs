@@ -539,11 +539,18 @@ function handleBioConfirmDialog(timeoutMs) {
   var saw = false;
 
   while (Date.now() - start < timeoutMs) {
-    if (isBioConfirmDialogVisible()) {
+    var visible = isBioConfirmDialogVisible();
+    console.log("handleBioConfirmDialog 检测弹窗: visible=" + visible + ", elapsed=" + (Date.now() - start) + "ms");
+    if (visible) {
       saw = true;
+      console.log("检测到 Save bio? 弹窗，尝试点击 Save");
       if (clickAnyText(["Save", "保存"], "简介确认弹窗-Save", 900)) {
         randomSleep(450, 850);
-        if (!isBioConfirmDialogVisible()) return true;
+        if (!isBioConfirmDialogVisible()) {
+          console.log("Save bio? 弹窗已关闭，简介保存成功");
+          return true;
+        }
+        console.warn("点击Save后弹窗仍然存在");
       }
 
       var btn = null;
@@ -553,11 +560,18 @@ function handleBioConfirmDialog(timeoutMs) {
         console.warn("handleBioConfirmDialog 查找Save异常:", e1);
         btn = null;
       }
-      if (btn && clickClickableParent(btn, "简介确认弹窗按钮(兜底)")) {
-        randomSleep(450, 850);
-        if (!isBioConfirmDialogVisible()) return true;
+      if (btn) {
+        console.log("通过 findOne 找到Save按钮，兜底点击");
+        if (clickClickableParent(btn, "简介确认弹窗按钮(兜底)")) {
+          randomSleep(450, 850);
+          if (!isBioConfirmDialogVisible()) {
+            console.log("Save bio? 弹窗已关闭(兜底)，简介保存成功");
+            return true;
+          }
+        }
       }
     } else if (saw) {
+      console.log("Save bio? 弹窗已消失，认为已关闭");
       return true;
     }
     sleep(250);
@@ -568,6 +582,7 @@ function handleBioConfirmDialog(timeoutMs) {
     logCurrentAppContext("handleBioConfirmDialog失败");
     return false;
   }
+  console.log("handleBioConfirmDialog 超时退出，saw=" + saw + "（未出现弹窗，直接保存成功）");
   return true;
 }
 
@@ -965,20 +980,16 @@ function updateBio(bio) {
   if (!openFieldByLabel(["Bio", "简介", "个性签名", "About"], "简介入口")) return false;
   randomSleep(700, 1200);
   if (!setTextInEditor(bio, "简介")) return false;
+  // bio 无冷却期限制，不做 isElementEnabled 检查，直接点 Save
   var saveBtn = findSaveButtonInEditor(1800, "简介");
   if (saveBtn) {
-    if (!isElementEnabled(saveBtn, true)) {
-      console.warn("简介 Save 不可用，点击 Cancel 退出");
-      cancelToEditProfileListIfNeeded("简介不可保存");
-      waitForEditProfileScreen(9000);
-      return true;
-    }
     safeClick(saveBtn, "保存按钮-简介");
   } else {
-    console.log("简介 Save可点击");
+    console.log("简介未找到顶部Save按钮，尝试 clickSaveInEditor");
     if (!clickSaveInEditor()) return false;
   }
   // 保存简介后可能弹出"Save bio?"确认框，需要点 Save 才会提交
+  console.log("简介Save已点击，等待确认弹窗检测...");
   if (!handleBioConfirmDialog(6500)) return false;
   waitForEditProfileScreen(9000);
   randomSleep(900, 1400);
