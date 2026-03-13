@@ -486,111 +486,228 @@ function isProbablySearchInputNode(node) {
   return false;
 }
 
-function findFirstUserResult(username) {
-  // 策略1：完整用户名文本匹配（跳过搜索框 EditText）
-  try {
-    var byText = textContains(username).find();
-    if (byText) {
-      var found = null;
-      byText.forEach(function(n) {
-        if (found) return;
-        try {
-          var cls = n.className ? String(n.className() || "") : "";
-          if (cls.indexOf("EditText") >= 0) return; // 跳过搜索输入框
-          found = n;
-        } catch (e) {}
-      });
-      if (found) {
-        console.log("findFirstUserResult: 文本匹配命中 text=" + found.text());
-        return found;
-      }
-    }
-  } catch (e0) {}
+function normalizeVisibleText(s) {
+  return String(s || "").replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "").trim();
+}
 
-  // 策略2：用户名前缀匹配（应对 TikTok 截断长用户名显示）
-  var prefix = username.length > 8 ? username.substring(0, 8) : username;
-  try {
-    var byPrefix = textContains(prefix).find();
-    if (byPrefix) {
-      var found2 = null;
-      byPrefix.forEach(function(n) {
-        if (found2) return;
-        try {
-          var cls = n.className ? String(n.className() || "") : "";
-          if (cls.indexOf("EditText") >= 0) return;
-          var b = n.bounds();
-          if (b.top < device.height * 0.15) return; // 跳过顶部区域
-          found2 = n;
-        } catch (e) {}
-      });
-      if (found2) {
-        console.log("findFirstUserResult: 前缀匹配命中 prefix=" + prefix + ", text=" + found2.text());
-        return found2;
-      }
-    }
-  } catch (e1) {}
+function isFollowerMetaText(s) {
+  var textValue = normalizeVisibleText(s).toLowerCase();
+  return (
+    textValue.indexOf("followers") >= 0 ||
+    textValue.indexOf("likes") >= 0 ||
+    textValue.indexOf("follower") >= 0 ||
+    textValue.indexOf("粉丝") >= 0 ||
+    textValue.indexOf("获赞") >= 0
+  );
+}
 
-  // 策略3：位置兜底 - tabs 下方第一个全宽可点击 Button
+function findFollowerMetaNearNode(anchorNode) {
+  if (!anchorNode) return null;
+  var anchorBounds = null;
+  try { anchorBounds = anchorNode.bounds(); } catch (e0) { anchorBounds = null; }
+  if (!anchorBounds) return null;
+
+  var best = null;
+  var bestScore = 999999;
   try {
-    var buttons = className("android.widget.Button").clickable(true).find();
-    if (buttons) {
-      var best = null;
-      var bestTop = 99999;
-      buttons.forEach(function(n) {
+    var texts = className("android.widget.TextView").find();
+    if (texts) {
+      texts.forEach(function(n) {
         try {
+          var rawText = n.text ? n.text() : "";
+          if (!isFollowerMetaText(rawText)) return;
           var b = n.bounds();
-          // tabs 区域约 y=348，结果从 y≈372 开始；宽度必须接近全屏
-          if (b.top <= 350 || b.top >= device.height * 0.85) return;
-          if (b.width() < device.width * 0.8) return;
-          if (b.top < bestTop) {
-            bestTop = b.top;
+          if (!b) return;
+          if (b.top < anchorBounds.bottom - 10) return;
+          if (b.top > anchorBounds.bottom + 140) return;
+          if (Math.abs(b.left - anchorBounds.left) > 80) return;
+          var score = Math.abs(b.top - anchorBounds.bottom) + Math.abs(b.left - anchorBounds.left);
+          if (score < bestScore) {
+            bestScore = score;
             best = n;
           }
         } catch (e) {}
       });
-      if (best) {
-        console.log("findFirstUserResult: 位置兜底命中 bounds=(" + best.bounds().left + "," + best.bounds().top + "," + best.bounds().right + "," + best.bounds().bottom + ")");
-        return best;
+    }
+  } catch (e1) {}
+  return best;
+}
+
+function buildUserResultTapTarget(textNode, reason) {
+  if (!textNode) return null;
+  var textBounds = null;
+  try { textBounds = textNode.bounds(); } catch (e0) { textBounds = null; }
+  if (!textBounds) return null;
+
+  var metaNode = findFollowerMetaNearNode(textNode);
+  var metaBounds = null;
+  try { metaBounds = metaNode ? metaNode.bounds() : null; } catch (e1) { metaBounds = null; }
+
+  var x = Math.floor(Math.max(device.width * 0.28, Math.min(device.width * 0.60, textBounds.left + 120)));
+  var y = 0;
+  if (metaBounds) y = Math.floor((textBounds.centerY() + metaBounds.centerY()) / 2);
+  else y = Math.floor(textBounds.centerY() + 28);
+
+  return {
+    x: x,
+    y: y,
+    reason: reason,
+    text: normalizeVisibleText(textNode.text ? textNode.text() : ""),
+    hasMeta: !!metaBounds,
+    textBounds: textBounds,
+    metaBounds: metaBounds
+  };
+}
+
+function findFirstUserResult(username) {
+  var normalizedUsername = normalizeVisibleText(username);
+  var prefix = normalizedUsername.length > 8 ? normalizedUsername.substring(0, 8) : normalizedUsername;
+
+  try {
+    var exactNodes = className("android.widget.TextView").find();
+    if (exactNodes) {
+      var exactHit = null;
+      exactNodes.forEach(function(n) {
+        if (exactHit) return;
+        try {
+          var rawText = n.text ? n.text() : "";
+          var normalizedText = normalizeVisibleText(rawText);
+          if (!normalizedText) return;
+          if (normalizedText !== normalizedUsername) return;
+          var b = n.bounds();
+          if (!b || b.top < device.height * 0.15 || b.top > device.height * 0.85) return;
+          exactHit = buildUserResultTapTarget(n, "精确用户名匹配");
+        } catch (e) {}
+      });
+      if (exactHit) {
+        console.log("findFirstUserResult: 精确匹配命中 text=" + exactHit.text + ", hasMeta=" + exactHit.hasMeta);
+        return exactHit;
+      }
+    }
+  } catch (e0) {}
+
+  try {
+    var prefixNodes = className("android.widget.TextView").find();
+    if (prefixNodes) {
+      var prefixHit = null;
+      prefixNodes.forEach(function(n) {
+        if (prefixHit) return;
+        try {
+          var rawText = n.text ? n.text() : "";
+          var normalizedText = normalizeVisibleText(rawText);
+          if (!normalizedText) return;
+          if (normalizedText.indexOf(prefix) !== 0) return;
+          var b = n.bounds();
+          if (!b || b.top < device.height * 0.15 || b.top > device.height * 0.85) return;
+          if (!findFollowerMetaNearNode(n)) return;
+          prefixHit = buildUserResultTapTarget(n, "前缀匹配+followers校验");
+        } catch (e) {}
+      });
+      if (prefixHit) {
+        console.log("findFirstUserResult: 前缀匹配命中 text=" + prefixHit.text + ", hasMeta=" + prefixHit.hasMeta);
+        return prefixHit;
+      }
+    }
+  } catch (e1) {}
+
+  try {
+    var metas = className("android.widget.TextView").find();
+    if (metas) {
+      var fallbackHit = null;
+      metas.forEach(function(n) {
+        if (fallbackHit) return;
+        try {
+          var rawText = n.text ? n.text() : "";
+          if (!isFollowerMetaText(rawText)) return;
+          var b = n.bounds();
+          if (!b || b.top < 350 || b.top > device.height * 0.85) return;
+          var x = Math.floor(device.width * 0.40);
+          var y = Math.floor(b.centerY() - 36);
+          fallbackHit = {
+            x: x,
+            y: y,
+            reason: "followers区域位置兜底",
+            text: normalizeVisibleText(rawText),
+            hasMeta: true,
+            textBounds: b,
+            metaBounds: b
+          };
+        } catch (e) {}
+      });
+      if (fallbackHit) {
+        console.log("findFirstUserResult: followers位置兜底命中 text=" + fallbackHit.text);
+        return fallbackHit;
       }
     }
   } catch (e2) {}
 
-  // 策略4：id 兜底（可能随版本变化）
+  return null;
+}
+
+function isStillOnUserSearchResults(keyword) {
+  var normalizedKeyword = normalizeVisibleText(keyword);
   try {
-    var bySoa = id("soa").clickable(true).findOne(800);
-    if (bySoa) {
-      var b = bySoa.bounds();
-      if (b.width() > 500) {
-        console.log("findFirstUserResult: id=soa 兜底命中");
-        return bySoa;
+    if ((text("Users").exists() || text("Top").exists() || text("Videos").exists()) && className("android.widget.EditText").exists()) {
+      var edit = className("android.widget.EditText").findOne(300);
+      if (edit) {
+        var value = normalizeVisibleText(edit.text ? edit.text() : "");
+        if (!normalizedKeyword || value.indexOf(normalizedKeyword) >= 0 || normalizedKeyword.indexOf(value) >= 0) return true;
       }
     }
-  } catch (e3) {}
-  try {
-    var byJxf = id("jxf").clickable(true).findOne(800);
-    if (byJxf) {
-      console.log("findFirstUserResult: id=jxf 兜底命中");
-      return byJxf;
-    }
-  } catch (e4) {}
+  } catch (e) {}
+  return false;
+}
 
-  return null;
+function tapUserResultTarget(target, username, attempt) {
+  if (!target) return false;
+  console.log(
+    "点击用户结果: attempt=" +
+      attempt +
+      ", reason=" +
+      target.reason +
+      ", text=" +
+      target.text +
+      ", hasMeta=" +
+      target.hasMeta +
+      ", point=(" +
+      target.x +
+      "," +
+      target.y +
+      ")"
+  );
+  var ok = false;
+  try { ok = click(target.x, target.y); } catch (e0) { ok = false; }
+  console.log("点击用户结果坐标结果: " + ok);
+  if (!ok) return false;
+  randomSleep(900, 1400);
+
+  if (isStillOnUserSearchResults(username)) {
+    console.warn("点击后仍停留在搜索结果页，尝试备用点位");
+    var backupX = Math.floor(device.width * 0.18);
+    var backupY = target.metaBounds ? target.metaBounds.centerY() : target.y;
+    try { ok = click(backupX, backupY); } catch (e1) { ok = false; }
+    console.log("备用点位点击结果: " + ok + " point=(" + backupX + "," + backupY + ")");
+    if (ok) randomSleep(900, 1400);
+    if (isStillOnUserSearchResults(username)) {
+      console.warn("备用点位后仍停留在搜索结果页，本轮点击视为失败");
+      return false;
+    }
+  }
+  return true;
 }
 
 function openUserFromResults(username) {
   console.log("打开搜索结果用户:", username);
-  // 尝试切到 Users
   clickAnyText(["Users", "User", "用户"], "Users Tab", 1500);
   randomSleep(3000, 5000);
 
-  // 最多重试2轮（首次 bounds 可能还没渲染完）
-  for (var attempt = 0; attempt < 2; attempt++) {
+  for (var attempt = 0; attempt < 3; attempt++) {
     var target = findFirstUserResult(username);
     if (target) {
-      return clickClickableParent(target, "用户结果(attempt=" + attempt + ")");
+      if (tapUserResultTarget(target, username, attempt)) return true;
     }
-    console.log("openUserFromResults attempt=" + attempt + " 未找到，等待重试...");
-    randomSleep(2000, 3000);
+    console.log("openUserFromResults attempt=" + attempt + " 未完成跳转，等待重试...");
+    randomSleep(1800, 2600);
   }
 
   console.warn("openUserFromResults 所有策略均未命中: " + username);
