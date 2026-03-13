@@ -486,82 +486,115 @@ function isProbablySearchInputNode(node) {
   return false;
 }
 
-function dumpSearchResultsDebug(username) {
-  console.log("===== 搜索结果页 dump 开始 =====");
-
-  // 1. 查找包含用户名文本的元素
+function findFirstUserResult(username) {
+  // 策略1：完整用户名文本匹配（跳过搜索框 EditText）
   try {
     var byText = textContains(username).find();
     if (byText) {
+      var found = null;
       byText.forEach(function(n) {
+        if (found) return;
         try {
-          var b = n.bounds();
-          console.log("  [文本匹配] text=" + n.text() + ", class=" + n.className() + ", clickable=" + n.clickable() + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
+          var cls = n.className ? String(n.className() || "") : "";
+          if (cls.indexOf("EditText") >= 0) return; // 跳过搜索输入框
+          found = n;
         } catch (e) {}
       });
-    } else {
-      console.log("  [文本匹配] 未找到包含 '" + username + "' 的元素");
+      if (found) {
+        console.log("findFirstUserResult: 文本匹配命中 text=" + found.text());
+        return found;
+      }
     }
-  } catch (e0) { console.log("  [文本匹配] 异常:", e0); }
+  } catch (e0) {}
 
-  // 2. 列出屏幕中部区域（tab下方~底栏上方）的可点击元素（最多打10个）
+  // 策略2：用户名前缀匹配（应对 TikTok 截断长用户名显示）
+  var prefix = username.length > 8 ? username.substring(0, 8) : username;
   try {
-    var allClickable = clickable(true).find();
-    var count = 0;
-    if (allClickable) {
-      allClickable.forEach(function(n) {
-        if (count >= 10) return;
+    var byPrefix = textContains(prefix).find();
+    if (byPrefix) {
+      var found2 = null;
+      byPrefix.forEach(function(n) {
+        if (found2) return;
         try {
+          var cls = n.className ? String(n.className() || "") : "";
+          if (cls.indexOf("EditText") >= 0) return;
           var b = n.bounds();
-          if (b.top < device.height * 0.15 || b.bottom > device.height * 0.90) return;
-          var t = n.text ? String(n.text() || "") : "";
-          var d = n.desc ? String(n.desc() || "") : "";
-          var rid = n.id ? String(n.id() || "") : "";
-          console.log("  [可点击#" + count + "] text=" + t + ", desc=" + d + ", id=" + rid + ", class=" + n.className() + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
-          count++;
+          if (b.top < device.height * 0.15) return; // 跳过顶部区域
+          found2 = n;
         } catch (e) {}
       });
+      if (found2) {
+        console.log("findFirstUserResult: 前缀匹配命中 prefix=" + prefix + ", text=" + found2.text());
+        return found2;
+      }
     }
-    console.log("  [可点击] 中部区域共 " + count + " 个");
-  } catch (e1) { console.log("  [可点击] 异常:", e1); }
+  } catch (e1) {}
 
-  // 3. 列出所有 TextView（文本节点），看看搜索结果里有什么文字（最多20个）
+  // 策略3：位置兜底 - tabs 下方第一个全宽可点击 Button
   try {
-    var tvs = className("android.widget.TextView").find();
-    var tvCount = 0;
-    if (tvs) {
-      tvs.forEach(function(n) {
-        if (tvCount >= 20) return;
+    var buttons = className("android.widget.Button").clickable(true).find();
+    if (buttons) {
+      var best = null;
+      var bestTop = 99999;
+      buttons.forEach(function(n) {
         try {
           var b = n.bounds();
-          if (b.top < device.height * 0.10 || b.bottom > device.height * 0.90) return;
-          var t = n.text ? String(n.text() || "") : "";
-          if (!t) return;
-          console.log("  [TextView#" + tvCount + "] text=" + t + ", bounds=(" + b.left + "," + b.top + "," + b.right + "," + b.bottom + ")");
-          tvCount++;
+          // tabs 区域约 y=348，结果从 y≈372 开始；宽度必须接近全屏
+          if (b.top <= 350 || b.top >= device.height * 0.85) return;
+          if (b.width() < device.width * 0.8) return;
+          if (b.top < bestTop) {
+            bestTop = b.top;
+            best = n;
+          }
         } catch (e) {}
       });
+      if (best) {
+        console.log("findFirstUserResult: 位置兜底命中 bounds=(" + best.bounds().left + "," + best.bounds().top + "," + best.bounds().right + "," + best.bounds().bottom + ")");
+        return best;
+      }
     }
-    console.log("  [TextView] 中部区域共 " + tvCount + " 个");
-  } catch (e2) { console.log("  [TextView] 异常:", e2); }
+  } catch (e2) {}
 
-  console.log("===== 搜索结果页 dump 结束 =====");
+  // 策略4：id 兜底（可能随版本变化）
+  try {
+    var bySoa = id("soa").clickable(true).findOne(800);
+    if (bySoa) {
+      var b = bySoa.bounds();
+      if (b.width() > 500) {
+        console.log("findFirstUserResult: id=soa 兜底命中");
+        return bySoa;
+      }
+    }
+  } catch (e3) {}
+  try {
+    var byJxf = id("jxf").clickable(true).findOne(800);
+    if (byJxf) {
+      console.log("findFirstUserResult: id=jxf 兜底命中");
+      return byJxf;
+    }
+  } catch (e4) {}
+
+  return null;
 }
 
 function openUserFromResults(username) {
   console.log("打开搜索结果用户:", username);
   // 尝试切到 Users
-  clickAnyText(["Users", "User", "用户"], "Users Tab", 700);
-  randomSleep(5600, 8000);
+  clickAnyText(["Users", "User", "用户"], "Users Tab", 1500);
+  randomSleep(3000, 5000);
 
-  // 打印搜索结果页信息，便于确认能用什么方式定位
-  dumpSearchResultsDebug(username);
+  // 最多重试2轮（首次 bounds 可能还没渲染完）
+  for (var attempt = 0; attempt < 2; attempt++) {
+    var target = findFirstUserResult(username);
+    if (target) {
+      return clickClickableParent(target, "用户结果(attempt=" + attempt + ")");
+    }
+    console.log("openUserFromResults attempt=" + attempt + " 未找到，等待重试...");
+    randomSleep(2000, 3000);
+  }
 
-  // 兜底：点第一个头像/结果项
-  try {
-    var img = id("jxf").clickable(true).findOne(2500);
-    if (img) return safeClick(img, "用户结果-头像(兜底)");
-  } catch (e4) {}
+  console.warn("openUserFromResults 所有策略均未命中: " + username);
+  logCurrentAppContext("openUserFromResults失败");
   return false;
 }
 
